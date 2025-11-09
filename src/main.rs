@@ -9,25 +9,32 @@ pub fn main() -> iced::Result {
 
 #[derive(Default)]
 struct AudioMeter {
-    too_loud: bool
+    too_loud: bool,
+    limit: f32,
+    last_max_volume: f32,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
-    MicMonitorUpdate(mic_monitor::Event)
+    MicMonitorUpdate(mic_monitor::Event),
+    LimitChanged(f32),
 }
 
 impl AudioMeter {
     fn update(&mut self, message: Message) {
-        // println!("Recieved message {:?}", message);
         match message {
             Message::MicMonitorUpdate(event) => { 
                 match event {
-                    mic_monitor::Event::UpdateLevel { too_loud } => {
-                        self.too_loud = too_loud
+                    mic_monitor::Event::UpdateLevel { max_volume } => {
+                        self.too_loud = max_volume >= self.limit;
+                        self.last_max_volume = max_volume;
                     },
                 } 
             }
+            Message::LimitChanged(limit) => {
+                println!("Recieved message {:?}", message);
+                self.limit = limit
+            },
         }
     }
 
@@ -35,10 +42,12 @@ impl AudioMeter {
         iced::Subscription::run(mic_monitor::connect).map(Message::MicMonitorUpdate)
     }
 
-    fn view(&self) -> iced::Element<Message> {
+    fn view(&'_ self) -> iced::Element<'_, Message> {
         let message = format!("Too loud: {}", self.too_loud);
         let text_widget = iced::widget::text(message);
-        iced::widget::container(iced::widget::column![text_widget])
+        let limit_slider = iced::widget::slider(0.0..=1.0, self.limit, Message::LimitChanged).step(0.01);
+        let volume_slider = iced::widget::slider(0.0..=1.0, self.last_max_volume, Message::LimitChanged).step(0.01);
+        iced::widget::container(iced::widget::column![text_widget, limit_slider, volume_slider])
             .into()
     }
 
